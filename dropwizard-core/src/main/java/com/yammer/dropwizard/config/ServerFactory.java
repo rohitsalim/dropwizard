@@ -3,7 +3,9 @@ package com.yammer.dropwizard.config;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.sun.jersey.api.container.filter.PostReplaceFilter.ConfigFlag;
 import com.sun.jersey.spi.container.servlet.ServletContainer;
+import com.yammer.dropwizard.config.HttpConfiguration.ConnectorType;
 import com.yammer.dropwizard.jersey.JacksonMessageBodyProvider;
 import com.yammer.dropwizard.jetty.BiDiGzipHandler;
 import com.yammer.dropwizard.jetty.NonblockingServletHolder;
@@ -85,13 +87,17 @@ public class ServerFactory {
     private Server createServer(Environment env) {
         final Server server = env.getServer();
 
-        server.addConnector(createExternalConnector());
-
-        // if we're dynamically allocating ports, no worries if they are the same (i.e. 0)
-        if (config.getAdminPort() == 0 || (config.getAdminPort() != config.getPort()) ) {
-            server.addConnector(createInternalConnector());
+        if ((config.getSslPort() != 9999) && (config.getSslConfiguration() != null) && (config.getSslPort() != config.getPort())) {
+        	setCustomRtrServer(server);
+        } else {
+            server.addConnector(createExternalConnector());
+            
+            // if we're dynamically allocating ports, no worries if they are the same (i.e. 0)
+            if (config.getAdminPort() == 0 || (config.getAdminPort() != config.getPort()) ) {
+                server.addConnector(createInternalConnector());
+            }
         }
-
+        
         server.addBean(new UnbrandedErrorHandler());
 
         server.setSendDateHeader(config.isDateHeaderEnabled());
@@ -105,7 +111,95 @@ public class ServerFactory {
 
         return server;
     }
+    
+    //RTR patch
+    private void setCustomRtrServer(Server server) {
+    	
+    	 // if we're dynamically allocating ports, no worries if they are the same (i.e. 0)
+        if (config.getAdminPort() == 0 || (config.getAdminPort() != config.getPort()) && (config.getAdminPort() != config.getSslPort())) {
+            server.addConnector(createInternalConnector());
+        }
+        server.addConnector(createExternalConnector(config.getSslPort(), config.getSslConnectorType(), "SSL"));
+        server.addConnector(createExternalConnector(config.getPort(), config.getNonSslConnectorType(), "NonSSL"));
+        
+    }
 
+    //RTR Patch
+    private Connector createExternalConnector(int port, ConnectorType connectorType, String connectorName) {
+    	final AbstractConnector connector;
+        switch (connectorType) {
+            case BLOCKING:
+                connector = new InstrumentedBlockingChannelConnector(port);
+                break;
+            case LEGACY:
+                connector = new InstrumentedSocketConnector(port);
+                break;
+            case LEGACY_SSL:
+                connector = new InstrumentedSslSocketConnector(port);
+                break;
+            case NONBLOCKING:
+                connector = new InstrumentedSelectChannelConnector(port);
+                break;
+            case NONBLOCKING_SSL:
+                connector = new InstrumentedSslSelectChannelConnector(port);
+                break;
+            default:
+                throw new IllegalStateException("Invalid connector type: " + config.getConnectorType());
+        }
+
+        if (connector instanceof SslConnector) {
+            configureSslContext(((SslConnector) connector).getSslContextFactory());
+        }
+
+        if (connector instanceof SelectChannelConnector) {
+            ((SelectChannelConnector) connector).setLowResourcesConnections(config.getLowResourcesConnectionThreshold());
+        }
+
+        if (connector instanceof AbstractNIOConnector) {
+            ((AbstractNIOConnector) connector).setUseDirectBuffers(config.useDirectBuffers());
+        }
+
+
+        connector.setHost(config.getBindHost().orNull());
+
+        connector.setAcceptors(config.getAcceptorThreads());
+
+        connector.setForwarded(config.useForwardedHeaders());
+
+        connector.setMaxIdleTime((int) config.getMaxIdleTime().toMilliseconds());
+
+        connector.setLowResourcesMaxIdleTime((int) config.getLowResourcesMaxIdleTime()
+                                                         .toMilliseconds());
+
+        connector.setAcceptorPriorityOffset(config.getAcceptorThreadPriorityOffset());
+
+        connector.setAcceptQueueSize(config.getAcceptQueueSize());
+
+        connector.setMaxBuffers(config.getMaxBufferCount());
+
+        connector.setRequestBufferSize((int) config.getRequestBufferSize().toBytes());
+
+        connector.setRequestHeaderSize((int) config.getRequestHeaderBufferSize().toBytes());
+
+        connector.setResponseBufferSize((int) config.getResponseBufferSize().toBytes());
+
+        connector.setResponseHeaderSize((int) config.getResponseHeaderBufferSize().toBytes());
+
+        connector.setReuseAddress(config.isReuseAddressEnabled());
+        
+        final Optional<Duration> lingerTime = config.getSoLingerTime();
+
+        if (lingerTime.isPresent()) {
+            connector.setSoLingerTime((int) lingerTime.get().toMilliseconds());
+        }
+
+        connector.setPort(config.getPort());
+        connector.setName(connectorName);
+    	
+    	return connector;
+    }
+    
+    
     private Connector createExternalConnector() {
         final AbstractConnector connector = createConnector(config.getPort());
 

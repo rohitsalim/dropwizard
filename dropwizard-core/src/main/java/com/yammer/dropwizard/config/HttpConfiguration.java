@@ -62,6 +62,10 @@ public class HttpConfiguration {
     @JsonProperty
     private int adminPort = 8081;
 
+    @PortRange
+    @JsonProperty
+    private int sslPort = 9999;
+    
     @Min(2)
     @Max(1000000)
     @JsonProperty
@@ -76,6 +80,14 @@ public class HttpConfiguration {
     @JsonProperty
     private ConnectorType connectorType = ConnectorType.BLOCKING;
 
+    @NotNull
+    @JsonProperty
+    private ConnectorType nonSslConnectorType = ConnectorType.BLOCKING;
+    
+    @NotNull
+    @JsonProperty
+    private ConnectorType sslConnectorType = ConnectorType.NONBLOCKING_SSL;
+    
     @NotNull
     @JsonProperty
     private Duration maxIdleTime = Duration.seconds(200);
@@ -182,7 +194,6 @@ public class HttpConfiguration {
     public GzipConfiguration getGzipConfiguration() {
         return gzip;
     }
-
     public void setGzipConfiguration(GzipConfiguration config) {
         this.gzip = config;
     }
@@ -203,6 +214,22 @@ public class HttpConfiguration {
     public void setConnectorType(ConnectorType type) {
         this.connectorType = type;
     }
+    
+    public void setNonSSLConnectorType(ConnectorType nonSSLConnectorType) {
+    	this.nonSslConnectorType = nonSSLConnectorType;
+    }
+    
+    public ConnectorType getNonSslConnectorType() {
+    	return nonSslConnectorType;
+    }
+    
+    public void setSslConnectorType(ConnectorType sslConnectorType) {
+    	this.sslConnectorType = sslConnectorType;
+    } 
+    
+    public ConnectorType getSslConnectorType() {
+    	return sslConnectorType;
+    }
 
     public int getPort() {
         return port;
@@ -220,6 +247,14 @@ public class HttpConfiguration {
         this.adminPort = port;
     }
 
+    public void setSslPort(int sslPort) {
+    	this.sslPort = sslPort;
+    }
+    
+    public int getSslPort() {
+    	return sslPort;
+    }
+    
     public int getMaxThreads() {
         return maxThreads;
     }

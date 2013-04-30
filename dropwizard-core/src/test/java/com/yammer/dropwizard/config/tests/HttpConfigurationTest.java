@@ -4,6 +4,7 @@ import com.google.common.base.Optional;
 import com.google.common.io.Resources;
 import com.yammer.dropwizard.config.ConfigurationFactory;
 import com.yammer.dropwizard.config.HttpConfiguration;
+import com.yammer.dropwizard.config.HttpConfiguration.ConnectorType;
 import com.yammer.dropwizard.util.Duration;
 import com.yammer.dropwizard.util.Size;
 import com.yammer.dropwizard.validation.Validator;
@@ -183,5 +184,23 @@ public class HttpConfigurationTest {
     public void hasAnAdminPassword() throws Exception {
         assertThat(http.getAdminPassword())
                 .isEqualTo(Optional.of("password"));
+    }
+    
+    @Test
+    public void hasSSlPort() {
+    	assertThat(http.getSslPort())
+    		.isEqualTo(9999);
+    }
+    
+    @Test
+    public void hasSSlConnectorType() {
+    	assertThat(http.getSslConnectorType())
+    		.isEqualTo(ConnectorType.NONBLOCKING_SSL);
+    }
+    
+    @Test
+    public void hasNonSSLConnectorType() {
+    	assertThat(http.getNonSslConnectorType())
+    		.isEqualTo(ConnectorType.BLOCKING);
     }
 }

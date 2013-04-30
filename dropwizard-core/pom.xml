@@ -15,9 +15,27 @@
         <jetty.version>8.1.10.v20130312</jetty.version>
         <slf4j.version>1.7.4</slf4j.version>
         <logback.version>1.0.10</logback.version>
+        <powermock.version>1.5</powermock.version>    
     </properties>
 
     <dependencies>
+	   <dependency>
+	      	<groupId>org.powermock</groupId>
+	      	<artifactId>powermock-module-junit4</artifactId>
+	      	<version>${powermock.version}</version>
+	      	<scope>test</scope>
+	   </dependency>
+	   <dependency>
+	      	<groupId>org.powermock</groupId>
+	      	<artifactId>powermock-api-mockito</artifactId>
+	      	<version>${powermock.version}</version>
+	        <scope>test</scope>
+	   </dependency>
+	   <dependency>
+			<groupId>org.powermock</groupId>
+			<artifactId>powermock-api-easymock</artifactId>
+			<version>1.5</version>
+		</dependency>
         <dependency>
             <groupId>com.sun.jersey</groupId>
             <artifactId>jersey-core</artifactId>
@@ -177,4 +195,33 @@
             </testResource>
         </testResources>
     </build>
+    
+    <repositories>
+		<repository>
+			<id>rtr-nexus</id>
+			<name>Nexus Distribution</name>
+			<url>http://nexus01.renttherunway.it/content/repositories/releases/</url>
+		</repository>
+		<repository>
+			<id>rtr-nexus-snapshots</id>
+			<name>Nexus Distribution</name>
+			<url>http://nexus01.renttherunway.it/content/repositories/snapshots/</url>
+		</repository>
+		<repository>
+			<id>rtr-nexus-thirdparty</id>
+			<name>rtr-nexus</name>
+			<url>http://nexus01.renttherunway.it/content/repositories/thirdparty</url>
+		</repository>
+		<repository>
+			<id>sourceforge</id>
+			<url>http://oss.sonatype.org/content/groups/sourceforge/</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+		</repository>
+	</repositories>
+    
 </project>
