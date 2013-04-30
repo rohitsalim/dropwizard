@@ -86,10 +86,12 @@ public class ServerFactory {
 
     private Server createServer(Environment env) {
         final Server server = env.getServer();
-
+        LOGGER.info("createServer method called");
         if ((config.getSslPort() != 9999) && (config.getSslConfiguration() != null) && (config.getSslPort() != config.getPort())) {
+        	LOGGER.info("About to create custom RTR server");
         	setCustomRtrServer(server);
         } else {
+        	LOGGER.info("About to follow coda's pattern in creating servers");
             server.addConnector(createExternalConnector());
             
             // if we're dynamically allocating ports, no worries if they are the same (i.e. 0)
@@ -114,11 +116,13 @@ public class ServerFactory {
     
     //RTR patch
     private void setCustomRtrServer(Server server) {
-    	
+    	LOGGER.info("Custom RTR Server");
     	 // if we're dynamically allocating ports, no worries if they are the same (i.e. 0)
         if (config.getAdminPort() == 0 || (config.getAdminPort() != config.getPort()) && (config.getAdminPort() != config.getSslPort())) {
             server.addConnector(createInternalConnector());
         }
+        LOGGER.info("SSL port: " + config.getSslPort());
+        LOGGER.info("Non-SSL port: " + config.getPort());
         server.addConnector(createExternalConnector(config.getSslPort(), config.getSslConnectorType(), "SSL"));
         server.addConnector(createExternalConnector(config.getPort(), config.getNonSslConnectorType(), "NonSSL"));
         
@@ -193,7 +197,7 @@ public class ServerFactory {
             connector.setSoLingerTime((int) lingerTime.get().toMilliseconds());
         }
 
-        connector.setPort(config.getPort());
+        connector.setPort(port);
         connector.setName(connectorName);
     	
     	return connector;
