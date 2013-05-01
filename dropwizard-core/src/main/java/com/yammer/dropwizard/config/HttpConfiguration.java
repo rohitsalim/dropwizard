@@ -67,6 +67,10 @@ public class HttpConfiguration {
     @JsonProperty
     private int adminPort = 8081;
 
+    @PortRange
+    @JsonProperty
+    private int sslPort = 8082;
+    
     @Min(2)
     @Max(1000000)
     @JsonProperty
@@ -85,6 +89,10 @@ public class HttpConfiguration {
     @JsonProperty
     private ConnectorType connectorType = ConnectorType.BLOCKING;
 
+    @NotNull
+    @JsonProperty
+    private ConnectorType sslConnectorType = ConnectorType.NONBLOCKING_SSL;
+    
     @NotNull
     @JsonProperty
     private Duration maxIdleTime = Duration.seconds(200);
@@ -126,6 +134,9 @@ public class HttpConfiguration {
     @JsonProperty
     private boolean reuseAddress = true;
 
+    @JsonProperty
+    private boolean sslAndNonSsl = false;
+    
     @JsonProperty
     private Duration soLingerTime = null;
 
@@ -178,7 +189,15 @@ public class HttpConfiguration {
         return (adminPassword == null) || (adminUsername != null);
     }
 
-    public RequestLogConfiguration getRequestLogConfiguration() {
+    public boolean isSslAndNonSsl() {
+		return sslAndNonSsl;
+	}
+
+	public void setSslAndNonSsl(boolean sslAndNonSsl) {
+		this.sslAndNonSsl = sslAndNonSsl;
+	}
+
+	public RequestLogConfiguration getRequestLogConfiguration() {
         return requestLog;
     }
 
@@ -218,7 +237,15 @@ public class HttpConfiguration {
         this.connectorType = type;
     }
 
-    public int getPort() {
+    public ConnectorType getSslConnectorType() {
+		return sslConnectorType;
+	}
+
+	public void setSslConnectorType(ConnectorType sslConnectorType) {
+		this.sslConnectorType = sslConnectorType;
+	}
+
+	public int getPort() {
         return port;
     }
 
@@ -233,8 +260,16 @@ public class HttpConfiguration {
     public void setAdminPort(int port) {
         this.adminPort = port;
     }
+    
+    public int getSslPort() {
+		return sslPort;
+	}
 
-    public int getMaxThreads() {
+	public void setSslPort(int sslPort) {
+		this.sslPort = sslPort;
+	}
+
+	public int getMaxThreads() {
         return maxThreads;
     }
 

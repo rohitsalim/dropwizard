@@ -5,6 +5,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.sun.jersey.spi.container.servlet.ServletContainer;
+import com.yammer.dropwizard.config.HttpConfiguration.ConnectorType;
 import com.yammer.dropwizard.jersey.JacksonMessageBodyProvider;
 import com.yammer.dropwizard.jetty.BiDiGzipHandler;
 import com.yammer.dropwizard.jetty.UnbrandedErrorHandler;
@@ -104,14 +105,17 @@ public class ServerFactory {
 
     private Server createServer() {
         final Server server = new Server();
-
-        server.addConnector(createExternalConnector());
-
+        
+        if (config.isSslAndNonSsl()) {
+        	setupCustomRTRServer(server);
+        } else {
+        	server.addConnector(createExternalConnector());
+        }
         // if we're dynamically allocating ports, no worries if they are the same (i.e. 0)
         if (config.getAdminPort() == 0 || (config.getAdminPort() != config.getPort()) ) {
             server.addConnector(createInternalConnector());
         }
-
+        
         server.addBean(new UnbrandedErrorHandler());
 
         server.setSendDateHeader(config.isDateHeaderEnabled());
@@ -126,9 +130,33 @@ public class ServerFactory {
         return server;
     }
 
+    protected void setupCustomRTRServer(Server server) {
+    	int sslPort = config.getSslPort();
+    	int nonSslPort = config.getPort();
+    	ConnectorType nonSslConnectorType = config.getConnectorType();
+    	ConnectorType sslConnectorType = config.getSslConnectorType();
+    	SslConfiguration sslConfiguration = config.getSslConfiguration();
+    	if (sslConfiguration == null) {
+    		throw new IllegalStateException("SSL configuration needs to be specified");
+    	}
+    	
+    	server.addConnector(createExternalConnector(nonSslPort, nonSslConnectorType, "Non-SSL"));
+    	server.addConnector(createExternalConnector(sslPort, sslConnectorType, "SSL"));
+    }
+    
+    protected Connector createExternalConnector(int port, ConnectorType connectorType, String name) {
+    	final AbstractConnector connector = createConnector(port, connectorType);
+    	setConnecterProperties(connector, port, name);
+    	return connector;
+    }
+    
     private Connector createExternalConnector() {
         final AbstractConnector connector = createConnector(config.getPort());
+        setConnecterProperties(connector, config.getPort(), "main");
+        return connector;
+    }
 
+    protected void setConnecterProperties(AbstractConnector connector, int port, String name) {
         connector.setHost(config.getBindHost().orNull());
 
         connector.setAcceptors(config.getAcceptorThreads());
@@ -162,34 +190,32 @@ public class ServerFactory {
             connector.setSoLingerTime((int) lingerTime.get().toMilliseconds());
         }
 
-        connector.setPort(config.getPort());
-        connector.setName("main");
-
-        return connector;
+        connector.setPort(port);
+        connector.setName(name);
     }
-
-    private AbstractConnector createConnector(int port) {
-        final AbstractConnector connector;
-        switch (config.getConnectorType()) {
-            case BLOCKING:
-                connector = new InstrumentedBlockingChannelConnector(port);
-                break;
-            case LEGACY:
-                connector = new InstrumentedSocketConnector(port);
-                break;
-            case LEGACY_SSL:
-                connector = new InstrumentedSslSocketConnector(port);
-                break;
-            case NONBLOCKING:
-                connector = new InstrumentedSelectChannelConnector(port);
-                break;
-            case NONBLOCKING_SSL:
-                connector = new InstrumentedSslSelectChannelConnector(port);
-                break;
-            default:
-                throw new IllegalStateException("Invalid connector type: " + config.getConnectorType());
-        }
-
+    
+    protected AbstractConnector createConnector(int port, ConnectorType connectorType) {
+    	final AbstractConnector connector;
+    	switch (connectorType) {
+	    	case BLOCKING:
+	            connector = new InstrumentedBlockingChannelConnector(port);
+	            break;
+	        case LEGACY:
+	            connector = new InstrumentedSocketConnector(port);
+	            break;
+	        case LEGACY_SSL:
+	            connector = new InstrumentedSslSocketConnector(port);
+	            break;
+	        case NONBLOCKING:
+	            connector = new InstrumentedSelectChannelConnector(port);
+	            break;
+	        case NONBLOCKING_SSL:
+	            connector = new InstrumentedSslSelectChannelConnector(port);
+	            break;
+	        default:
+	            throw new IllegalStateException("Invalid connector type: " + config.getConnectorType());
+	    }
+    	
         if (connector instanceof SslConnector) {
             configureSslContext(((SslConnector) connector).getSslContextFactory());
         }
@@ -201,7 +227,12 @@ public class ServerFactory {
         if (connector instanceof AbstractNIOConnector) {
             ((AbstractNIOConnector) connector).setUseDirectBuffers(config.useDirectBuffers());
         }
-
+    	
+    	return connector;
+    }
+    
+    private AbstractConnector createConnector(int port) {
+    	final AbstractConnector connector = createConnector(port, config.getConnectorType());
         return connector;
     }
 
