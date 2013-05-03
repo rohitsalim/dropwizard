@@ -1,13 +1,13 @@
 package com.yammer.dropwizard.config;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.google.common.base.Optional;
+import com.google.common.collect.ImmutableMap;
+import com.yammer.dropwizard.validation.PortRange;
 import com.yammer.dropwizard.util.Duration;
 import com.yammer.dropwizard.util.Size;
-import com.yammer.dropwizard.validation.PortRange;
 import com.yammer.dropwizard.validation.ValidationMethod;
 
 import javax.validation.Valid;
@@ -15,6 +15,7 @@ import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotNull;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * An object representation of the {@code http} section of the YAML configuration file.
@@ -42,17 +43,21 @@ public class HttpConfiguration {
 
     @Valid
     @NotNull
-    @JsonProperty("requestLog")
+    @JsonProperty
     private RequestLogConfiguration requestLog = new RequestLogConfiguration();
 
     @Valid
     @NotNull
-    @JsonProperty("gzip")
+    @JsonProperty
     private GzipConfiguration gzip = new GzipConfiguration();
 
     @Valid
-    @JsonProperty("ssl")
+    @JsonProperty
     private SslConfiguration ssl = null;
+
+    @NotNull
+    @JsonProperty
+    private ImmutableMap<String, String> contextParameters = ImmutableMap.of();
 
     @PortRange
     @JsonProperty
@@ -62,6 +67,10 @@ public class HttpConfiguration {
     @JsonProperty
     private int adminPort = 8081;
 
+    @PortRange
+    @JsonProperty
+    private int sslPort = 8082;
+    
     @Min(2)
     @Max(1000000)
     @JsonProperty
@@ -71,11 +80,19 @@ public class HttpConfiguration {
     @Max(1000000)
     @JsonProperty
     private int minThreads = 8;
+
+    @NotNull
+    @JsonProperty
+    private String rootPath = "/*";
     
     @NotNull
     @JsonProperty
     private ConnectorType connectorType = ConnectorType.BLOCKING;
 
+    @NotNull
+    @JsonProperty
+    private ConnectorType sslConnectorType = ConnectorType.NONBLOCKING_SSL;
+    
     @NotNull
     @JsonProperty
     private Duration maxIdleTime = Duration.seconds(200);
@@ -117,6 +134,9 @@ public class HttpConfiguration {
     @JsonProperty
     private boolean reuseAddress = true;
 
+    @JsonProperty
+    private boolean sslAndNonSsl = false;
+    
     @JsonProperty
     private Duration soLingerTime = null;
 
@@ -169,8 +189,15 @@ public class HttpConfiguration {
         return (adminPassword == null) || (adminUsername != null);
     }
 
-    @JsonIgnore
-    public RequestLogConfiguration getRequestLogConfiguration() {
+    public boolean isSslAndNonSsl() {
+		return sslAndNonSsl;
+	}
+
+	public void setSslAndNonSsl(boolean sslAndNonSsl) {
+		this.sslAndNonSsl = sslAndNonSsl;
+	}
+
+	public RequestLogConfiguration getRequestLogConfiguration() {
         return requestLog;
     }
 
@@ -178,7 +205,6 @@ public class HttpConfiguration {
         this.requestLog = config;
     }
 
-    @JsonIgnore
     public GzipConfiguration getGzipConfiguration() {
         return gzip;
     }
@@ -187,13 +213,20 @@ public class HttpConfiguration {
         this.gzip = config;
     }
 
-    @JsonIgnore
     public SslConfiguration getSslConfiguration() {
         return ssl;
     }
 
     public void setSslConfiguration(SslConfiguration config) {
         this.ssl = config;
+    }
+
+    public ImmutableMap<String, String> getContextParameters() {
+        return contextParameters;
+    }
+
+    public void setContextParameters(Map<String, String> contextParameters) {
+        this.contextParameters = ImmutableMap.copyOf(contextParameters);
     }
 
     public ConnectorType getConnectorType() {
@@ -204,7 +237,15 @@ public class HttpConfiguration {
         this.connectorType = type;
     }
 
-    public int getPort() {
+    public ConnectorType getSslConnectorType() {
+		return sslConnectorType;
+	}
+
+	public void setSslConnectorType(ConnectorType sslConnectorType) {
+		this.sslConnectorType = sslConnectorType;
+	}
+
+	public int getPort() {
         return port;
     }
 
@@ -219,8 +260,16 @@ public class HttpConfiguration {
     public void setAdminPort(int port) {
         this.adminPort = port;
     }
+    
+    public int getSslPort() {
+		return sslPort;
+	}
 
-    public int getMaxThreads() {
+	public void setSslPort(int sslPort) {
+		this.sslPort = sslPort;
+	}
+
+	public int getMaxThreads() {
         return maxThreads;
     }
 
@@ -386,6 +435,14 @@ public class HttpConfiguration {
 
     public void setUseServerHeader(boolean useServerHeader) {
         this.useServerHeader = useServerHeader;
+    }
+
+    public String getRootPath() {
+        return rootPath;
+    }
+
+    public void setRootPath(String path) {
+        this.rootPath = path;
     }
 
     public Optional<String> getAdminUsername() {

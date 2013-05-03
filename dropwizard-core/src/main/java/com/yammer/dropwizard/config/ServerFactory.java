@@ -4,6 +4,7 @@ import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.sun.jersey.spi.container.servlet.ServletContainer;
+import com.yammer.dropwizard.config.HttpConfiguration.ConnectorType;
 import com.yammer.dropwizard.jersey.JacksonMessageBodyProvider;
 import com.yammer.dropwizard.jetty.BiDiGzipHandler;
 import com.yammer.dropwizard.jetty.NonblockingServletHolder;
@@ -77,21 +78,40 @@ public class ServerFactory {
         for (HealthCheck healthCheck : env.getHealthChecks()) {
             HealthChecks.defaultRegistry().register(healthCheck);
         }
-        final Server server = createServer(env);
+
+        if (env.getHealthChecks().isEmpty()) {
+            LOGGER.warn('\n' +
+                             "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n" +
+                             "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n" +
+                             "!    THIS SERVICE HAS NO HEALTHCHECKS. THIS MEANS YOU WILL NEVER KNOW IF IT    !\n" +
+                             "!    DIES IN PRODUCTION, WHICH MEANS YOU WILL NEVER KNOW IF YOU'RE LETTING     !\n" +
+                             "!     YOUR USERS DOWN. YOU SHOULD ADD A HEALTHCHECK FOR EACH DEPENDENCY OF     !\n" +
+                             "!     YOUR SERVICE WHICH FULLY (BUT LIGHTLY) TESTS YOUR SERVICE'S ABILITY TO   !\n" +
+                             "!      USE THAT SERVICE. THINK OF IT AS A CONTINUOUS INTEGRATION TEST.         !\n" +
+                             "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n" +
+                             "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+            );
+        }
+
+        final Server server = createServer();
         server.setHandler(createHandler(env));
+        server.addBean(env);
         return server;
     }
 
-    private Server createServer(Environment env) {
-        final Server server = env.getServer();
-
-        server.addConnector(createExternalConnector());
-
+    private Server createServer() {
+        final Server server = new Server();
+        
+        if (config.isSslAndNonSsl()) {
+        	setupCustomRTRServer(server);
+        } else {
+        	server.addConnector(createExternalConnector());
+        }
         // if we're dynamically allocating ports, no worries if they are the same (i.e. 0)
         if (config.getAdminPort() == 0 || (config.getAdminPort() != config.getPort()) ) {
             server.addConnector(createInternalConnector());
         }
-
+        
         server.addBean(new UnbrandedErrorHandler());
 
         server.setSendDateHeader(config.isDateHeaderEnabled());
@@ -106,9 +126,33 @@ public class ServerFactory {
         return server;
     }
 
+    protected void setupCustomRTRServer(Server server) {
+    	int sslPort = config.getSslPort();
+    	int nonSslPort = config.getPort();
+    	ConnectorType nonSslConnectorType = config.getConnectorType();
+    	ConnectorType sslConnectorType = config.getSslConnectorType();
+    	SslConfiguration sslConfiguration = config.getSslConfiguration();
+    	if (sslConfiguration == null) {
+    		throw new IllegalStateException("SSL configuration needs to be specified");
+    	}
+    	
+    	server.addConnector(createExternalConnector(nonSslPort, nonSslConnectorType, "Non-SSL"));
+    	server.addConnector(createExternalConnector(sslPort, sslConnectorType, "SSL"));
+    }
+    
+    protected Connector createExternalConnector(int port, ConnectorType connectorType, String name) {
+    	final AbstractConnector connector = createConnector(port, connectorType);
+    	setConnecterProperties(connector, port, name);
+    	return connector;
+    }
+    
     private Connector createExternalConnector() {
         final AbstractConnector connector = createConnector(config.getPort());
+        setConnecterProperties(connector, config.getPort(), "main");
+        return connector;
+    }
 
+    protected void setConnecterProperties(AbstractConnector connector, int port, String name) {
         connector.setHost(config.getBindHost().orNull());
 
         connector.setAcceptors(config.getAcceptorThreads());
@@ -142,34 +186,32 @@ public class ServerFactory {
             connector.setSoLingerTime((int) lingerTime.get().toMilliseconds());
         }
 
-        connector.setPort(config.getPort());
-        connector.setName("main");
-
-        return connector;
+        connector.setPort(port);
+        connector.setName(name);
     }
-
-    private AbstractConnector createConnector(int port) {
-        final AbstractConnector connector;
-        switch (config.getConnectorType()) {
-            case BLOCKING:
-                connector = new InstrumentedBlockingChannelConnector(port);
-                break;
-            case LEGACY:
-                connector = new InstrumentedSocketConnector(port);
-                break;
-            case LEGACY_SSL:
-                connector = new InstrumentedSslSocketConnector(port);
-                break;
-            case NONBLOCKING:
-                connector = new InstrumentedSelectChannelConnector(port);
-                break;
-            case NONBLOCKING_SSL:
-                connector = new InstrumentedSslSelectChannelConnector(port);
-                break;
-            default:
-                throw new IllegalStateException("Invalid connector type: " + config.getConnectorType());
-        }
-
+    
+    protected AbstractConnector createConnector(int port, ConnectorType connectorType) {
+    	final AbstractConnector connector;
+    	switch (connectorType) {
+	    	case BLOCKING:
+	            connector = new InstrumentedBlockingChannelConnector(port);
+	            break;
+	        case LEGACY:
+	            connector = new InstrumentedSocketConnector(port);
+	            break;
+	        case LEGACY_SSL:
+	            connector = new InstrumentedSslSocketConnector(port);
+	            break;
+	        case NONBLOCKING:
+	            connector = new InstrumentedSelectChannelConnector(port);
+	            break;
+	        case NONBLOCKING_SSL:
+	            connector = new InstrumentedSslSelectChannelConnector(port);
+	            break;
+	        default:
+	            throw new IllegalStateException("Invalid connector type: " + config.getConnectorType());
+	    }
+    	
         if (connector instanceof SslConnector) {
             configureSslContext(((SslConnector) connector).getSslContextFactory());
         }
@@ -181,7 +223,12 @@ public class ServerFactory {
         if (connector instanceof AbstractNIOConnector) {
             ((AbstractNIOConnector) connector).setUseDirectBuffers(config.useDirectBuffers());
         }
-
+    	
+    	return connector;
+    }
+    
+    private AbstractConnector createConnector(int port) {
+    	final AbstractConnector connector = createConnector(port, config.getConnectorType());
         return connector;
     }
 
@@ -285,12 +332,16 @@ public class ServerFactory {
         factory.setIncludeProtocols(Iterables.toArray(sslConfig.getSupportedProtocols(),
                                                       String.class));
     }
-
-
+    
     private Handler createHandler(Environment env) {
         final HandlerCollection collection = new HandlerCollection();
-
-        collection.addHandler(createExternalServlet(env));
+        
+        if (config.isSslAndNonSsl()) {
+        	LOGGER.info("CREATING CUSTOM RTR SERVLETS");
+        	createCustomRTRExternalServlets(env);
+        } else {
+        	collection.addHandler(createExternalServlet(env));
+        }
         collection.addHandler(createInternalServlet(env));
 
         if (requestLogHandlerFactory.isEnabled()) {
@@ -357,11 +408,43 @@ public class ServerFactory {
             jerseyHolder.setInitOrder(Integer.MAX_VALUE);
             handler.addServlet(jerseyHolder, env.getJerseyEnvironment().getUrlPattern());
         }
+        
 
         handler.setConnectorNames(new String[]{"main"});
 
         return wrapHandler(handler);
     }
+    
+    private Handler createCustomRTRExternalServlets(Environment env) {
+    	final ServletContextHandler handler = env.getServletContext();
+    	handler.addFilter(ThreadNameFilter.class, "/*", EnumSet.of(DispatcherType.REQUEST));
+    	
+    	final ServletContainer jerseyContainer = env.getJerseyServletContainer();
+        if (jerseyContainer != null) {
+            env.getJerseyEnvironment().addProvider(
+                    new JacksonMessageBodyProvider(env.getJsonEnvironment().build(),
+                                                   env.getValidator())
+            );
+            final ServletHolder jerseyHolder1 = new NonblockingServletHolder(jerseyContainer);
+            jerseyHolder1.setInitOrder(Integer.MAX_VALUE);
+            handler.addServlet(jerseyHolder1, env.getJerseyEnvironment().getUrlPattern());
+            
+            env.getSecondJerseyEnvironment().addProvider(
+            		new JacksonMessageBodyProvider(env.getJsonEnvironment().build(), 
+            									   env.getValidator())
+            );
+            final ServletHolder jerseyHolder2 = new NonblockingServletHolder(jerseyContainer);
+            jerseyHolder2.setInitOrder(Integer.MAX_VALUE);
+            handler.addServlet(jerseyHolder2, env.getSecondJerseyEnvironment().getUrlPattern());
+            
+        }
+        handler.setConnectorNames(new String[]{"main"});
+        
+        return wrapHandler(handler);
+        
+    }
+    
+    
 
     private Handler wrapHandler(ServletContextHandler handler) {
         final InstrumentedHandler instrumented = new InstrumentedHandler(handler);

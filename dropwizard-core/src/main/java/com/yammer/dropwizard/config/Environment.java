@@ -28,7 +28,6 @@ public class Environment {
 
     private final AtomicReference<ServletContainer> jerseyServletContainer;
     private final JerseyEnvironment jerseyEnvironment;
-
     private final ServletContextHandler servletContext;
     private final ServletEnvironment servletEnvironment;
 
@@ -37,6 +36,8 @@ public class Environment {
 
     private final ServletContextHandler adminContext;
     private final AdminEnvironment adminEnvironment;
+    
+    private final JerseyEnvironment secondJerseyEnvironment;
 
     /**
      * Creates a new environment.
@@ -51,7 +52,7 @@ public class Environment {
         this.jsonEnvironment = new JsonEnvironment(objectMapperFactory);
         this.validator = validator;
         final DropwizardResourceConfig jerseyConfig = new DropwizardResourceConfig(false);
-
+        
         this.server = new Server();
 
         this.servletContext = new ServletContextHandler();
@@ -66,9 +67,17 @@ public class Environment {
         this.jerseyServletContainer = new AtomicReference<ServletContainer>(new ServletContainer(jerseyConfig));
         this.jerseyEnvironment = new JerseyEnvironment(servletContext, jerseyServletContainer,
                                                        jerseyConfig);
+        
+        //I think you can use the same ServletContext
+        final DropwizardResourceConfig jerseyConfig2 = new DropwizardResourceConfig(false);
+        this.secondJerseyEnvironment = new JerseyEnvironment(servletContext, jerseyServletContainer, jerseyConfig2);
     }
+    
+    public JerseyEnvironment getSecondJerseyEnvironment() {
+		return secondJerseyEnvironment;
+	}
 
-    public JerseyEnvironment getJerseyEnvironment() {
+	public JerseyEnvironment getJerseyEnvironment() {
         return jerseyEnvironment;
     }
 
